@@ -14,12 +14,28 @@
         let formattedText = text.replace(codeBlockRegex, (match, language, code) => {
             const lang = language || 'plaintext';
             const formattedCode = code.trim();
-            return `<pre class="bg-lighter rounded-lg p-4 my-2 overflow-x-auto"><code class="language-${lang}">${formattedCode}</code></pre>`;
+            return `<pre class="bg-lighter rounded-lg p-4 my-2 overflow-x-auto"><code class="language-${lang}">${escapeHtml(formattedCode)}</code></pre>`;
         });
 
-        formattedText = formattedText.replace(inlineCodeRegex, '<code class="bg-lighter px-1 py-0.5 rounded font-mono opacity-80">$1</code>');
+        formattedText = formattedText.replace(inlineCodeRegex, (match, code) => {
+            return `<code class="bg-lighter px-1 py-0.5 rounded font-mono opacity-80">${escapeHtml(code)}</code>`;
+        });
 
         return formattedText;
+    }
+
+    function escapeHtml(str: string): string {
+        return str.replace(/[&<>"'`]/g, (char) => {
+            const escapeMap: Record<string, string> = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;',
+                '`': '&#x60;',
+            };
+            return escapeMap[char];
+        });
     }
 
     async function sendMessage() {
