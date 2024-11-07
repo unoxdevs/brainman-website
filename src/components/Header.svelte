@@ -2,6 +2,8 @@
     import { chat } from "$lib/chat";
     import { writable } from "svelte/store";
 
+    export let version: string = "v2";
+
     let userInput = "";
     let chatMessages = writable([]);
     let isThinking = false;
@@ -10,34 +12,44 @@
     function formatCodeBlock(text: string): string {
         const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
         const inlineCodeRegex = /`([^`]+)`/g;
+        const boldRegex = /\*\*(.*?)\*\*/g;
+        const italicRegex = /\*(.*?)\*/g;
+        const strikethroughRegex = /--(.*?)--/g;
 
-        let formattedText = text.replace(codeBlockRegex, (match, language, code) => {
-            const lang = language || 'plaintext';
-            const formattedCode = code.trim();
-            return `<pre class="bg-lighter rounded-lg p-4 my-2 overflow-x-auto"><code class="language-${lang}">${escapeHtml(formattedCode)}</code></pre>`;
-        });
-
-        formattedText = formattedText.replace(inlineCodeRegex, (match, code) => {
-            return `<code class="bg-lighter px-1 py-0.5 rounded font-mono opacity-80">${escapeHtml(code)}</code>`;
-        });
+        let formattedText = text
+            .replace(codeBlockRegex, (match, language, code) => {
+                const lang = language || 'plaintext';
+                const formattedCode = escapeHtml(code.trim());
+                return `<pre class="bg-lighter rounded-lg p-4 my-2 overflow-x-auto"><code class="language-${lang}">${formattedCode}</code></pre>`;
+            })
+            .replace(inlineCodeRegex, (match, code) => {
+                return `<code class="bg-lighter px-1 py-0.5 rounded font-mono opacity-80">${escapeHtml(code)}</code>`;
+            })
+            .replace(boldRegex, (match, text) => {
+                return `<strong>${escapeHtml(text)}</strong>`;
+            })
+            .replace(italicRegex, (match, text) => {
+                return `<em>${escapeHtml(text)}</em>`;
+            })
+            .replace(strikethroughRegex, (match, text) => {
+                return `<del>${escapeHtml(text)}</del>`;
+            });
 
         return formattedText;
     }
 
-    function escapeHtml(str: string): string {
-        return str.replace(/[&<>"'`]/g, (char) => {
-            const escapeMap: Record<string, string> = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;',
-                '`': '&#x60;',
-            };
-            return escapeMap[char];
+    function escapeHtml(text: string): string {
+        return text.replace(/[&<>"']/g, function (char) {
+            switch (char) {
+                case '&': return '&amp;';
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '"': return '&quot;';
+                case "'": return '&#39;';
+                default: return char;
+            }
         });
     }
-
     async function sendMessage() {
         if (userInput.trim()) {
             const currentInput = userInput;
@@ -57,7 +69,7 @@
 
             scrollToBottom();
             
-            const response = await chat(currentInput);
+            const response = await chat(currentInput, version);
             
             isThinking = false;
             chatMessages.update(messages => {
@@ -83,15 +95,15 @@
     }
 
     async function generatePythonCode() {
-        userInput = "Can you make me a simple calculator written in python?"
+        userInput = "Can you make me a simple calculator written in python?";
     }
 
     async function explainConcept() {
-        userInput = "Can you explain the concept of a simple calculator?"
+        userInput = "Can you explain the concept of a simple calculator?";
     }
 
     async function summarizeText() {
-        userInput = "Summarize this text: Neptune has a system of five main rings. The rings, originally called “arcs”, were discovered on July 22, 1984 by the team of Patrice Bouchet, Reinhold Häfner and Jean Manfroid at the La Silla Observatory in Chile and by F. Vilas and L. R. Elicer at the Cerro Tololo American Observatory as part of a program led by William Hubbard. The rings were photographed by the Voyager 2 spacecraft in 1989. The densest parts of the rings are comparable to the relatively less dense parts of Saturn's main rings (such as the C ring and the Cassini section), but most of Neptune's ring system is relatively thin, faint and dusty, more similar to Jupiter's rings. Neptune's rings are named after astronomers who contributed to important studies of the planet: Galle, Le Verrier, Lassell, Arago and Adams. Neptune has another faint, unnamed ring that coincides with the orbit of one of its moons, Galatea. Its other three moons, Naiad, Thalassa and Despina, orbit between the rings."
+        userInput = "Summarize this text: Neptune has a system of five main rings...";
     }
 </script>
 
@@ -118,13 +130,17 @@
     </div>
 
     <div class="max-w-3xl mx-auto w-full px-2 sm:px-0">
-        <div class="flex flex-wrap justify-center gap-2 mb-2 sm:mb-4">
-            <button on:click={generatePythonCode} class="bg-dark px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-white/5 text-xs sm:text-sm">🐍 Generate Python Code</button>
-            <button on:click={explainConcept} class="bg-dark px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-white/5 text-xs sm:text-sm">🎓 Explain Simply</button>
-            <button on:click={summarizeText} class="bg-dark px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border border-white/5 text-xs sm:text-sm">🤔 Summarize</button>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-2 sm:mb-4">
+            <select bind:value={version} class="bg-dark px-3 sm:px-4 py-3 sm:py-1 rounded-lg border border-white/5 text-xs sm:text-sm col-span-1">
+                <option value="v1">Version 1</option>
+                <option value="v2">Version 2</option>
+            </select>
+            <button on:click={generatePythonCode} class="bg-dark px-3 sm:px-4 py-3 sm:py-1 rounded-lg border border-white/5 text-xs sm:text-sm col-span-1">🐍 Generate Python Code</button>
+            <button on:click={explainConcept} class="bg-dark px-3 sm:px-4 py-3 sm:py-1 rounded-lg border border-white/5 text-xs sm:text-sm col-span-1">🎓 Explain Simply</button>
+            <button on:click={summarizeText} class="bg-dark px-3 sm:px-4 py-3 sm:py-1 rounded-lg border border-white/5 text-xs sm:text-sm col-span-1">🤔 Summarize</button>
         </div>
         <div class="relative">
-            <textarea rows="3" bind:value={userInput} on:keydown={(e) => e.key === 'Enter' && sendMessage()} placeholder="Enter your message..." class="w-full bg-dark rounded-lg px-3 sm:px-4 py-2 sm:py-3 pr-12 focus:outline-none placeholder:opacity-20 border border-white/5 text-sm sm:text-base" disabled={isThinking}></textarea>
+            <textarea rows="3" bind:value={userInput} on:keydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }}} placeholder="Enter your message..." class="w-full bg-dark rounded-lg px-3 sm:px-4 py-2 sm:py-3 pr-12 focus:outline-none placeholder:opacity-20 border border-white/5 text-sm sm:text-base" disabled={isThinking}></textarea>
             <div class="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 space-x-2 flex">
                 <button on:click={sendMessage} class="bg-lighter py-1 px-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-opacity-80 border border-white/5" disabled={!userInput.trim() || isThinking}>
                     <i class="ri-arrow-up-line"></i>
