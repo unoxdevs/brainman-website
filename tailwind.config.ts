@@ -6,8 +6,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        dark: "#1B1B1B",
-        lighter: "#2B2B2B",
+        darker: "#000000",
+        lighter: "#1c1c1c",
+        muted: "#2b2b2b",
+        accent: "#3d3d3d",
       }
     }
   },

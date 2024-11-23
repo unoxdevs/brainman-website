@@ -15,6 +15,7 @@ export interface ChatSession {
 
 const storedSessions = browser ? JSON.parse(localStorage?.getItem('chatSessions') || '[]') : [];
 export const chatSessions = writable<ChatSession[]>(storedSessions);
+export const currentSessionId = writable<string | null>(null);
 
 export function createNewSession(): string {
     const sessionId = Date.now().toString();
@@ -31,11 +32,12 @@ export function createNewSession(): string {
         }
         return newSessions;
     });
+    currentSessionId.set(sessionId);
     return sessionId;
 }
 
 export function updateSession(sessionId: string, messages: ChatMessage[]) {
-    if (messages.length === 0) return;
+    if (!sessionId || messages.length === 0) return;
 
     chatSessions.update(sessions => {
         const firstUserMessage = messages.find(m => m.sender === 'user')?.text || 'New Chat';
@@ -44,25 +46,36 @@ export function updateSession(sessionId: string, messages: ChatMessage[]) {
             : firstUserMessage;
 
         const sessionIndex = sessions.findIndex(s => s.id === sessionId);
-        if (sessionIndex !== -1) {
+        if (sessionIndex === -1) {
+            sessions = [{
+                id: sessionId,
+                title,
+                messages,
+                timestamp: Date.now()
+            }, ...sessions];
+        } else {
             sessions[sessionIndex] = {
                 ...sessions[sessionIndex],
                 title,
                 messages,
                 timestamp: Date.now()
             };
-        } else {
-            sessions.unshift({
-                id: sessionId,
-                title,
-                messages,
-                timestamp: Date.now()
-            });
         }
-        
+
         if (browser) {
             localStorage.setItem('chatSessions', JSON.stringify(sessions));
         }
-        return [...sessions];
+        return sessions;
     });
+}
+
+export function getActiveSession(): ChatSession | null {
+    let currentId: string | null = null;
+    currentSessionId.subscribe(id => currentId = id)();
+    
+    let sessions: ChatSession[] = [];
+    chatSessions.subscribe(s => sessions = s)();
+    
+    if (!currentId) return null;
+    return sessions.find(s => s.id === currentId) || null;
 }

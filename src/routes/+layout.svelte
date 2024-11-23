@@ -12,7 +12,7 @@
         margin: 0;
         padding: 0;
         min-height: 100vh;
-        background-color: #111111;
+        background-color: #0b0b0b;
         color: rgba(255, 255, 255, 0.67);
     }
 </style>

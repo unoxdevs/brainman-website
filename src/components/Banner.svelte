@@ -1,44 +1,103 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { writable } from 'svelte/store';
-    import type { ChatMessage } from '../stores/chatStore';
-    import { createNewSession, updateSession } from '../stores/chatStore';
-    import { chat } from '../lib/chat';
     import Navbar from './Navbar.svelte';
+    import Footer from './Footer.svelte';
     import ChatHistory from './ChatHistory.svelte';
+    import Typewriter from './Typewriter.svelte';
+    import { chatSessions, currentSessionId, createNewSession, updateSession, getActiveSession } from '../stores/chatStore';
+    import type { ChatMessage } from '../stores/chatStore';
+    import { Toaster, toast } from 'svelte-sonner'
+    import { chat } from '../lib/chat';
 
-    let userInput = "";
-    let chatMessages = writable<ChatMessage[]>([]);
-    let isThinking = false;
-    let messagesContainer: HTMLDivElement;
+    let userInput = '';
+    let messagesContainer: HTMLElement;
     let isHistoryOpen = false;
-    let currentSessionId = createNewSession();
+    let isThinking = false;
+    let chatMessages: ChatMessage[] = [];
 
-    function toggleHistory() {
+    const quickPrompts = [
+        { title: 'Web Scraping', prompt: 'Write a Python script using BeautifulSoup to scrape book titles and prices from a hypothetical bookstore website. Show how to handle different HTML structures.' },
+        { title: 'Machine Learning', prompt: 'Demonstrate a simple machine learning classification example using scikit-learn. Show how to split data, train a model, and make predictions.' },
+        { title: 'File Encryption', prompt: 'Create a Python script that uses cryptography to encrypt and decrypt files, including key generation and secure file handling.' }
+    ];
+
+    function select(prompt: string) {
+        userInput = prompt;
+        const textarea = document.querySelector('textarea');
+        textarea?.focus();
+    }
+
+    onMount(() => {
+        const activeSession = getActiveSession();
+        if (activeSession) {
+            chatMessages = activeSession.messages;
+            $currentSessionId = activeSession.id;
+        } else {
+            reset();
+        }
+    });
+
+    function reset() {
+        chatMessages = [];
+        $currentSessionId = createNewSession();
+        isHistoryOpen = false;
+    }
+
+    function load(event: CustomEvent) {
+        const session = event.detail;
+        chatMessages = session.messages;
+        $currentSessionId = session.id;
+        scroll();
+    }
+
+    function toggle() {
         isHistoryOpen = !isHistoryOpen;
     }
 
-    function handleNewChat() {
-        chatMessages.set([]);
-        currentSessionId = createNewSession();
+    async function send() {
+        if (!userInput.trim() || isThinking) return;
+
+        const userMessage = userInput.trim();
+        userInput = "";
+        isThinking = true;
+
+        try {
+            chatMessages = [...chatMessages, { sender: 'user', text: userMessage }];
+            if ($currentSessionId) updateSession($currentSessionId, chatMessages);
+
+            const response = await chat(userMessage);
+
+            if (response && response.answer) {
+                chatMessages = [...chatMessages, { sender: 'assistant', text: response.answer }];
+                if ($currentSessionId) updateSession($currentSessionId, chatMessages);
+            } else {
+                throw new Error('Invalid response from server');
+            }
+        } catch (error) {
+            console.error('Chat error:', error);
+            chatMessages = [...chatMessages, { sender: 'assistant', text: error instanceof Error ? error.message : 'An error occurred. Please try again.' }];
+        } finally {
+            isThinking = false;
+            scroll();
+        }
     }
 
-    function handleLoadSession(event: CustomEvent<any>) {
-        const session = event.detail;
-        currentSessionId = session.id;
-        chatMessages.set(session.messages || []);
-    }
-
-    function formatMessage(text: string): string {
+    function format(text: string): string {
         if (!text) return '';
 
         text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, language, code) => {
             const lang = language || '';
-            return `<pre class="bg-[#1a1a1a] rounded-lg p-3 my-2 overflow-x-auto"><code class="language-${lang}">${escapeHtml(code.trim())}</code></pre>`;
+            const lines = code.trim().split('\n');
+            const codeLines = lines.map((line: any, index: number) => {
+                const lineNumber = (index + 1).toString().padStart(2, ' ');
+                return `<div class="code-line"><span class="select-none text-white/30 w-8 inline-block">${lineNumber}</span><span class="select-text">${escape(line)}</span></div>`;
+            }).join('');
+            
+            return `<pre class="bg-[#1a1a1a] rounded-lg p-3 my-2 overflow-x-auto font-mono"><code class="language-${lang} block">${codeLines}</code></pre>`;
         });
 
         text = text.replace(/`([^`]+)`/g, (match, code) => {
-            return `<code class="bg-[#1a1a1a] px-2 py-1 rounded font-mono text-sm">${escapeHtml(code)}</code>`;
+            return `<code class="bg-[#1a1a1a] px-2 py-1 rounded-lg font-mono text-sm">${escape(code)}</code>`;
         });
 
         text = text.replace(/\n/g, '<br>');
@@ -46,7 +105,7 @@
         return text;
     }
 
-    function escapeHtml(text: string): string {
+    function escape(text: string): string {
         const htmlEntities: { [key: string]: string } = {
             '&': '&amp;',
             '<': '&lt;',
@@ -57,125 +116,108 @@
         return text.replace(/[&<>"']/g, char => htmlEntities[char] || char);
     }
 
-    async function sendMessage(event?: Event) {
-        if (event?.preventDefault) {
-            event.preventDefault();
-        }
-
-        if (!userInput.trim() || isThinking) return;
-
-        const userMessage = userInput.trim();
-        userInput = "";
-        isThinking = true;
-
+    async function copy(text: string) {
         try {
-            $chatMessages = [...$chatMessages, { sender: 'user', text: userMessage }];
-            updateSession(currentSessionId, $chatMessages);
-
-            const response = await chat(userMessage);
-            
-            if (response && response.answer) {
-                $chatMessages = [...$chatMessages, { 
-                    sender: 'assistant', 
-                    text: response.answer 
-                }];
-                updateSession(currentSessionId, $chatMessages);
-            } else {
-                throw new Error('Invalid response from server');
-            }
-        } catch (error) {
-            console.error('Chat error:', error);
-            $chatMessages = [...$chatMessages, { 
-                sender: 'assistant', 
-                text: error instanceof Error ? error.message : 'An error occurred. Please try again.' 
-            }];
-        } finally {
-            isThinking = false;
-            setTimeout(() => {
-                messagesContainer?.scrollTo({
-                    top: messagesContainer.scrollHeight,
-                    behavior: 'smooth'
-                });
-            }, 100);
+            await navigator.clipboard.writeText(text).then(() => {
+                toast.success('Copied to clipboard', { duration: 2000 });
+            });
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
         }
     }
 
-    function handleKeydown(event: KeyboardEvent) {
+    function keydown(event: KeyboardEvent) {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
-            sendMessage();
+            send();
         }
     }
 
-    $: if (messagesContainer && $chatMessages.length) {
-        setTimeout(() => {
-            messagesContainer.scrollTo({
-                top: messagesContainer.scrollHeight,
-                behavior: 'smooth'
-            });
-        }, 100);
+    function scroll() {
+        messagesContainer?.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
     }
 </script>
 
-<Navbar {isHistoryOpen} {handleNewChat} on:click={toggleHistory} />
-<ChatHistory isOpen={isHistoryOpen} on:close={() => isHistoryOpen = false} on:newChat={handleNewChat} on:loadSession={handleLoadSession} />
+<Toaster richColors />
+<Navbar {isHistoryOpen} {reset} on:click={toggle} />
+<ChatHistory isOpen={isHistoryOpen} on:close={() => isHistoryOpen = false} on:newChat={reset} on:loadSession={load} />
 
-<div class="min-h-screen flex flex-col bg-[#111111] text-white">
-    <div bind:this={messagesContainer} class="flex-1 overflow-y-auto px-4 py-6 max-w-4xl mx-auto w-full relative [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded">
-        {#if $chatMessages.length === 0}
-        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="text-center text-white/50">
-                <h1 class="text-3xl font-bold mb-3">Welcome to Brainman Chat</h1>
-                <p class="text-lg">Start a conversation by typing a message below.</p>
+<div class="min-h-screen flex flex-col text-white/90">
+    <div bind:this={messagesContainer} class="flex-1 overflow-y-auto px-2 sm:px-6 py-4 sm:py-6 pt-14 sm:pt-20 max-w-3xl mx-auto w-full relative [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-white/10 scroll-smooth">
+        {#if chatMessages.length === 0}
+        <div class="absolute inset-0 flex flex-col items-center justify-center gap-6 sm:gap-8 px-4 pt-14 sm:pt-20">
+            <div class="text-center opacity-40">
+                <h1 class="text-xl sm:text-2xl font-medium tracking-wide mb-2">
+                    <Typewriter text="How can I help you?" speed={50} />
+                </h1>
             </div>
         </div>
-        {:else}
-        <div class="space-y-6 py-10">
-            {#each $chatMessages as message}
-            <div class="flex {message.sender === 'user' ? 'justify-end' : 'justify-start'}">
-                <div class="max-w-[85%] {message.sender === 'user' ? 'bg-[#2a2a2a]' : 'bg-[#1e1e1e]'} rounded-2xl p-4 shadow-lg">
+        {/if}
+    
+        <div class="space-y-5 sm:space-y-6 py-4 sm:py-6">
+            {#each chatMessages as message}
+            <div class="group flex items-start {message.sender === 'user' ? 'justify-end' : 'justify-start'} relative gap-3 animate-in fade-in slide-in-from-bottom-3 duration-300 ease-out">
+                {#if message.sender === 'assistant'}
+                <button on:click={() => copy(message.text)} class="p-1.5 text-white/20 hover:text-white/90 hover:bg-white/5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 hidden sm:block self-center" aria-label="Copy message">
+                    <i class="ri-file-copy-line text-xs"></i>
+                </button>
+                {/if}
+                <div class="max-w-[92%] sm:max-w-[85%] {message.sender === 'user' ? 'bg-white/5 rounded-2xl rounded-br-sm scale-100 hover:scale-[1.01]' : 'bg-white/[0.03] rounded-2xl rounded-bl-sm scale-100 hover:scale-[1.01]'} px-4 py-3 sm:px-5 sm:py-4 backdrop-blur-sm transition-all duration-300">
                     {#if message.sender === 'assistant'}
-                        <div class="whitespace-pre-wrap break-words leading-relaxed [&_pre]:font-mono [&_pre]:text-[0.9em] [&_pre]:leading-6 [&_pre]:my-4 [&_code]:font-mono">{@html formatMessage(message.text)}</div>
+                    <div class="whitespace-pre-wrap break-words leading-relaxed text-[13px] sm:text-sm [&_pre]:font-mono [&_pre]:text-[0.9em] [&_pre]:leading-relaxed [&_pre]:my-3 [&_code]:font-mono [&_pre]:bg-black/30 [&_pre]:backdrop-blur [&_pre]:border [&_pre]:border-white/[0.03] [&_pre]:rounded-xl [&_pre]:px-4 [&_pre]:py-3">{@html format(message.text)}</div>
                     {:else}
-                        <p class="whitespace-pre-wrap break-words leading-relaxed">{message.text}</p>
+                    <p class="whitespace-pre-wrap break-words leading-relaxed text-[13px] sm:text-sm">{message.text}</p>
                     {/if}
                 </div>
+                {#if message.sender === 'user'}
+                <button on:click={() => copy(message.text)} class="p-1.5 text-white/20 hover:text-white/90 hover:bg-white/5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 hidden sm:block self-center" aria-label="Copy message">
+                    <i class="ri-file-copy-line text-xs"></i>
+                </button>
+                {/if}
             </div>
             {/each}
             {#if isThinking}
-            <div class="flex justify-start">
-                <div class="bg-[#1e1e1e] rounded-2xl p-4 shadow-lg animate-pulse">
-                    <p class="text-white/70">Thinking<span class="animate-[dots_1.5s_infinite] after:content-['.'] after:animate-[dots_1.5s_infinite]"></span></p>
+            <div class="flex justify-start animate-in fade-in slide-in-from-bottom-3 duration-300">
+                <div class="bg-white/[0.03] rounded-2xl rounded-bl-sm px-5 py-3 backdrop-blur-sm">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 bg-white/40 rounded-full animate-pulse"></div>
+                        <div class="w-1.5 h-1.5 bg-white/40 rounded-full animate-pulse [animation-delay:150ms]"></div>
+                        <div class="w-1.5 h-1.5 bg-white/40 rounded-full animate-pulse [animation-delay:300ms]"></div>
+                    </div>
                 </div>
             </div>
             {/if}
         </div>
-        {/if}
     </div>
 
-    <div class="fixed bottom-0 left-0 right-0">
-        <div class="max-w-4xl mx-auto px-4 py-4">
-            <form on:submit={sendMessage} class="relative">
-                <textarea
-                    bind:value={userInput}
-                    on:keydown={handleKeydown}
-                    placeholder="Type your message..."
-                    class="w-full bg-[#1a1a1a] rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none text-white placeholder:text-white/30 min-h-[52px] max-h-32 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded"
-                    rows="1"
-                    disabled={isThinking}
-                ></textarea>
-                <button type="submit" class="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isThinking || !userInput.trim()}>
-                    <i class="ri-send-plane-fill text-xl"></i>
-                </button>
-            </form>
+    <div class="max-w-3xl w-full px-2 sm:px-6 mx-auto mb-4 sm:mb-6 mt-2">
+        <div class="flex flex-wrap gap-2 mb-4 justify-center">
+            {#each quickPrompts as prompt}
+            <button 
+                on:click={() => select(prompt.prompt)} 
+                class="bg-white/5 text-white/70 rounded-lg px-3 py-1.5 text-xs sm:text-sm hover:bg-white/10 hover:text-white/90 transition-all duration-200 border border-white/5 hover:border-white/10"
+            >
+                {prompt.title}
+            </button>
+            {/each}
         </div>
+        <form on:submit|preventDefault={send} class="relative group">
+            <textarea 
+                bind:value={userInput} 
+                on:keydown={keydown} 
+                placeholder="Type a message or choose a quick prompt..." 
+                class="w-full bg-white/[0.03] text-white/90 placeholder:text-white/20 text-[13px] sm:text-sm font-normal border border-white/5 rounded-2xl px-4 py-3 sm:px-5 sm:py-4 pr-11 resize-none focus:outline-none focus:border-white/10 focus:bg-white/[0.04] transition-all duration-200 min-h-[48px] sm:min-h-[56px] max-h-[160px] sm:max-h-[200px] backdrop-blur-sm"
+            ></textarea>
+            <button 
+                disabled={userInput.trim() === ""} 
+                type="submit" 
+                class="absolute bottom-[10px] sm:bottom-[14px] right-3 sm:right-4 p-1.5 text-white/40 hover:text-white/90 hover:scale-110 rounded-full transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:rotate-0 group-focus-within:text-white/60 active:scale-95 hover:rotate-12" 
+                aria-label="Send message"
+            >
+                <i class="ri-send-plane-line text-base"></i>
+            </button>
+        </form>
     </div>
 </div>
 
-<style>
-    @keyframes dots {
-        0%, 20% { content: '.'; }
-        40% { content: '..'; }
-        60%, 100% { content: '...'; }
-    }
-</style>
+<Footer />

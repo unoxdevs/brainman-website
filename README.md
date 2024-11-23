@@ -5,40 +5,46 @@ A modern, context-aware AI chat application built with **SvelteKit** and **Tailw
 ## ✨ Features
 
 ### 💬 Chat Interface
-- **Context-Aware Conversations**: The assistant remembers previously shared information for more natural dialogue
-- **Smart Message Formatting**: 
-  - Syntax-highlighted code blocks
-  - Inline code formatting
-  - Automatic line breaks and spacing
-- **Responsive Design**: Optimized for all devices (desktop, tablet, and mobile)
-- **Real-time Feedback**:
-  - Elegant loading indicators
-  - Smooth message transitions
-  - Auto-scroll to latest messages
+- **Session Management**:
+  - Persistent chat history with localStorage
+  - Multiple chat sessions support
+  - Session titles based on first message
+- **Message Handling**:
+  - Real-time message updates
+  - User and assistant message differentiation
+  - Message timestamps and counts
+- **Responsive Design**:
+  - Mobile-first approach
+  - Adaptive layout for all screen sizes
+  - Touch-friendly interface
 
 ### 🎨 Modern UI/UX
 - **Sleek Design**:
-  - Dark theme with gradient accents
-  - Custom scrollbar styling
-  - Shadow effects and rounded corners
+  - Dark theme with glass-morphism effects
+  - Custom button hover states
+  - Responsive navigation bar
 - **Interactive Elements**:
-  - Hover effects on buttons and messages
-  - Smooth animations and transitions
-  - Clear visual feedback for actions
+  - Smooth transitions and animations
+  - Loading states and error handling
+  - Intuitive history management
 - **Chat History**:
-  - Session management with timestamps
-  - Easy navigation between conversations
-  - Clear session indicators
+  - Clear all sessions functionality
+  - Individual session deletion
+  - Session preview with message counts
 
 ### 🛠 Technical Features
-- **Performance Optimized**:
-  - Efficient message rendering
-  - Smooth scrolling behavior
-  - Responsive input handling
+- **State Management**:
+  - Svelte stores for chat sessions
+  - Persistent storage with localStorage
+  - Efficient session updates
 - **Error Handling**:
-  - Graceful error messages
-  - Network error recovery
-  - Input validation
+  - Network timeout management
+  - Server error handling
+  - Connection status feedback
+- **API Integration**:
+  - RESTful API communication
+  - Axios for HTTP requests
+  - Timeout and retry logic
 
 ## 🚀 Getting Started
 
@@ -71,26 +77,27 @@ A modern, context-aware AI chat application built with **SvelteKit** and **Tailw
 - **Frontend**:
   - [SvelteKit](https://kit.svelte.dev/): Modern web application framework
   - [TailwindCSS](https://tailwindcss.com/): Utility-first CSS framework
-  - [Remix Icons](https://remixicon.com/): Beautiful icon set
+  - [Remix Icons](https://remixicon.com/): Icon library for UI elements
   
 - **Network**:
-  - [Axios](https://axios-http.com/): Promise-based HTTP client
+  - [Axios](https://axios-http.com/): HTTP client with timeout and error handling
 
 ## 📦 Project Structure
 
 ```
 brainman-web/
 ├── src/
-│   ├── components/         # Reusable UI components
-│   │   ├── Banner.svelte  # Main chat interface
-│   │   ├── ChatHistory.svelte
-│   │   └── Navbar.svelte
-│   ├── lib/               # Utility functions
-│   │   └── chat.ts        # Chat API integration
-│   ├── routes/            # SvelteKit routes
-│   └── stores/            # State management
-├── static/                # Static assets
-└── package.json
+│   ├── components/
+│   │   ├── Banner.svelte     # Main chat interface component
+│   │   ├── ChatHistory.svelte # Chat history management
+│   │   ├── Footer.svelte     # Application footer
+│   │   └── Navbar.svelte     # Navigation and controls
+│   ├── lib/
+│   │   └── chat.ts          # API integration and error handling
+│   ├── stores/
+│   │   └── chatStore.ts     # Chat state management
+│   └── routes/              # SvelteKit routes
+└── static/                  # Static assets
 ```
 
 ## 🤝 Contributing
@@ -104,4 +111,4 @@ This project is licensed under the MIT License
 ## 🙏 Acknowledgments
 
 - Thanks to all contributors who have helped shape this project
-- Special thanks to the Svelte and TailwindCSS communities for their excellent documentation and tools
+- Special thanks to the Svelte and TailwindCSS communities
