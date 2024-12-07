@@ -6,14 +6,15 @@
     import Typewriter from './Typewriter.svelte';
     import { chatSessions, currentSessionId, createNewSession, updateSession, getActiveSession } from '../stores/chatStore';
     import type { ChatMessage } from '../stores/chatStore';
-    import { Toaster, toast } from 'svelte-sonner'
-    import { chat } from '../lib/chat';
+    import toast, { Toaster } from 'svelte-french-toast';
+    import { chat, webChat } from '../lib/chat';
 
     let userInput = '';
     let messagesContainer: HTMLElement;
     let isHistoryOpen = false;
     let isThinking = false;
     let chatMessages: ChatMessage[] = [];
+    let isWebChatActive = false;
 
     const quickPrompts = [
         { title: 'Web Scraping', prompt: 'Write a Python script using BeautifulSoup to scrape book titles and prices from a hypothetical bookstore website. Show how to handle different HTML structures.' },
@@ -65,7 +66,7 @@
             chatMessages = [...chatMessages, { sender: 'user', text: userMessage }];
             if ($currentSessionId) updateSession($currentSessionId, chatMessages);
 
-            const response = await chat(userMessage);
+            const response = isWebChatActive ? await webChat(userMessage) : await chat(userMessage);
 
             if (response && response.answer) {
                 chatMessages = [...chatMessages, { sender: 'assistant', text: response.answer }];
@@ -119,7 +120,11 @@
     async function copy(text: string) {
         try {
             await navigator.clipboard.writeText(text).then(() => {
-                toast.success('Copied to clipboard', { duration: 2000 });
+                toast.success('Copied to clipboard', {
+                    style: "background-color: #1a1a1a; color: rgba(255, 255, 255, 0.67); border: 0.5px solid rgba(255, 255, 255, 0.13);",
+                    duration: 2000,
+                    position: 'bottom-right'
+                });
             });
         } catch (err) {
             console.error('Failed to copy text: ', err);
@@ -136,9 +141,13 @@
     function scroll() {
         messagesContainer?.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
     }
+
+    function toggleWebChat(event: Event) {
+        isWebChatActive = (event.target as HTMLInputElement).checked;
+    }
 </script>
 
-<Toaster richColors />
+<Toaster />
 <Navbar {isHistoryOpen} {reset} on:click={toggle} />
 <ChatHistory isOpen={isHistoryOpen} on:close={() => isHistoryOpen = false} on:newChat={reset} on:loadSession={load} />
 
@@ -162,7 +171,7 @@
                     <i class="ri-file-copy-line text-xs"></i>
                 </button>
                 {/if}
-                <div class="max-w-[92%] sm:max-w-[85%] {message.sender === 'user' ? 'bg-white/5 rounded-2xl rounded-br-sm scale-100 hover:scale-[1.01]' : 'bg-white/[0.03] rounded-2xl rounded-bl-sm scale-100 hover:scale-[1.01]'} px-4 py-3 sm:px-5 sm:py-4 backdrop-blur-sm transition-all duration-300">
+                <div class="max-w-[92%] sm:max-w-[85%] {message.sender === 'user' ? 'bg-white/5 rounded-2xl rounded-br-sm' : 'bg-white/[0.03] rounded-2xl rounded-bl-sm'} px-4 py-3 sm:px-5 sm:py-4 backdrop-blur-sm transition-all duration-300">
                     {#if message.sender === 'assistant'}
                     <div class="whitespace-pre-wrap break-words leading-relaxed text-[13px] sm:text-sm [&_pre]:font-mono [&_pre]:text-[0.9em] [&_pre]:leading-relaxed [&_pre]:my-3 [&_code]:font-mono [&_pre]:bg-black/30 [&_pre]:backdrop-blur [&_pre]:border [&_pre]:border-white/[0.03] [&_pre]:rounded-xl [&_pre]:px-4 [&_pre]:py-3">{@html format(message.text)}</div>
                     {:else}
@@ -193,29 +202,21 @@
     <div class="max-w-3xl w-full px-2 sm:px-6 mx-auto mb-4 sm:mb-6 mt-2">
         <div class="flex flex-wrap gap-2 mb-4 justify-center">
             {#each quickPrompts as prompt}
-            <button 
-                on:click={() => select(prompt.prompt)} 
-                class="bg-white/5 text-white/70 rounded-lg px-3 py-1.5 text-xs sm:text-sm hover:bg-white/10 hover:text-white/90 transition-all duration-200 border border-white/5 hover:border-white/10"
-            >
+            <button on:click={() => select(prompt.prompt)} class="bg-white/5 text-white/70 rounded-lg px-3 py-1.5 text-xs sm:text-sm hover:bg-white/10 hover:text-white/90 transition-all duration-200 border border-white/5 hover:border-white/10">
                 {prompt.title}
             </button>
             {/each}
         </div>
         <form on:submit|preventDefault={send} class="relative group">
-            <textarea 
-                bind:value={userInput} 
-                on:keydown={keydown} 
-                placeholder="Type a message or choose a quick prompt..." 
-                class="w-full bg-white/[0.03] text-white/90 placeholder:text-white/20 text-[13px] sm:text-sm font-normal border border-white/5 rounded-2xl px-4 py-3 sm:px-5 sm:py-4 pr-11 resize-none focus:outline-none focus:border-white/10 focus:bg-white/[0.04] transition-all duration-200 min-h-[48px] sm:min-h-[56px] max-h-[160px] sm:max-h-[200px] backdrop-blur-sm"
-            ></textarea>
-            <button 
-                disabled={userInput.trim() === ""} 
-                type="submit" 
-                class="absolute bottom-[10px] sm:bottom-[14px] right-3 sm:right-4 p-1.5 text-white/40 hover:text-white/90 hover:scale-110 rounded-full transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:rotate-0 group-focus-within:text-white/60 active:scale-95 hover:rotate-12" 
-                aria-label="Send message"
-            >
-                <i class="ri-send-plane-line text-base"></i>
-            </button>
+            <textarea bind:value={userInput} on:keydown={keydown} placeholder="Type a message or choose a quick prompt..." class="w-full bg-white/[0.03] text-white/90 placeholder:text-white/20 text-[13px] sm:text-sm font-normal border border-white/5 rounded-2xl px-4 py-3 sm:px-5 sm:py-4 pr-24 resize-none focus:outline-none focus:border-white/10 focus:bg-white/[0.04] transition-all duration-200 min-h-[48px] sm:min-h-[56px] max-h-[160px] sm:max-h-[200px] backdrop-blur-sm"></textarea>
+            <div class="absolute bottom-[10px] sm:bottom-[14px] right-3 sm:right-4 flex items-center space-x-2">
+                <button type="button" on:click={() => isWebChatActive = !isWebChatActive} class="p-1.5 text-white/40 hover:text-white/60 hover:scale-110 rounded-full transition-all duration-300 group-focus-within:text-white/60 active:scale-95 hover:rotate-12" aria-label="Toggle Web Search">
+                    <i class="ri-global-line text-base {isWebChatActive ? 'text-green-500' : 'opacity-50'}"></i>
+                </button>
+                <button disabled={userInput.trim() === ""} type="submit" class="p-1.5 text-white/40 hover:text-white/90 hover:scale-110 rounded-full transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:rotate-0 group-focus-within:text-white/60 active:scale-95 hover:rotate-12" aria-label="Send message">
+                    <i class="ri-send-plane-line text-base"></i>
+                </button>
+            </div>
         </form>
     </div>
 </div>
